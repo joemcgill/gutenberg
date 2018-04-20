@@ -12,6 +12,7 @@ import { __ } from '@wordpress/i18n';
 
 // Getter for the sake of unit tests.
 const getGalleryDetailsMediaFrame = () => {
+	const { Post } = wp.media.view.MediaFrame;
 	/**
 	 * Custom gallery details frame.
 	 *
@@ -19,8 +20,7 @@ const getGalleryDetailsMediaFrame = () => {
 	 * @class GalleryDetailsMediaFrame
 	 * @constructor
 	 */
-	return wp.media.view.MediaFrame.Post.extend( {
-
+	return Post.extend( {
 		/**
 		 * Create the default states.
 		 *
@@ -36,7 +36,7 @@ const getGalleryDetailsMediaFrame = () => {
 					filterable: 'uploaded',
 					multiple: 'add',
 					editable: false,
-
+					selection: this.options.selection,
 					library: wp.media.query( _.defaults( {
 						type: 'image',
 					}, this.options.library ) ),
@@ -70,27 +70,51 @@ class MediaUpload extends Component {
 		this.onUpdate = this.onUpdate.bind( this );
 		this.onOpen = this.onOpen.bind( this );
 		this.processMediaCaption = this.processMediaCaption.bind( this );
-		const frameConfig = {
-			title,
-			button: {
-				text: __( 'Select' ),
-			},
-			multiple,
-			selection: new wp.media.model.Selection( [] ),
+
+		const attachments = this.props.value;
+
+		const loadSelection = ( ids ) => {
+			const selection = new wp.media.model.Selection( [], { multiple: multiple } );
+
+			// Force ids to an array.
+			ids = ( 1 < ids.length ) ? ids : [ ids ];
+
+			if ( ids ) {
+				ids.map( ( id ) => {
+					const attachment = wp.media.attachment( id );
+
+					attachment.fetch();
+					selection.add( attachment );
+				} );
+			}
+
+			return selection;
 		};
-		if ( !! type ) {
-			frameConfig.library = { type };
-		}
 
 		if ( gallery ) {
 			const GalleryDetailsMediaFrame = getGalleryDetailsMediaFrame();
 			this.frame = new GalleryDetailsMediaFrame( {
 				frame: 'select',
 				mimeType: type,
-				state: 'gallery',
+				state: ( attachments ) ? 'gallery-edit' : 'gallery',
+				selection: loadSelection( attachments ),
+				editing: ( attachments ),
 			} );
 			wp.media.frame = this.frame;
 		} else {
+			const frameConfig = {
+				title,
+				button: {
+					text: __( 'Select' ),
+				},
+				multiple,
+				selection: loadSelection( attachments ),
+			};
+
+			if ( !! type ) {
+				frameConfig.library = { type };
+			}
+
 			this.frame = wp.media( frameConfig );
 		}
 
